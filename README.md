@@ -15,7 +15,7 @@ version | case dimensions (mm) | compatibility | add-on board | onboard chip | S
 [rev5](hardware-rev5) | 218x126x10 | PC, PS3, PS4\*, Switch | [RP2040-Zero](https://www.waveshare.com/rp2040-zero.htm) | - | no | [GP2040-CE](https://gp2040-ce.info/)
 [rev6](hardware-rev6) | 218x126x10 | PC, Switch | - | CH552T | yes | [CH552](firmware-ch552)
 [rev7](hardware-rev7) | 218x130x11 | PC | [Xiao nRF52840](https://www.seeedstudio.com/Seeed-XIAO-BLE-nRF52840-p-5201.html) | - | no | [slimbox-bt](https://github.com/jfedor2/slimbox-bt)
-[rev8](hardware-rev8) | 218x130x11 | PC, PS4\*, PS5\*, Switch | - | RP2350 | yes | [HID Remapper](https://github.com/jfedor2/hid-remapper)
+[rev8](hardware-rev8) | 218x130x11 | PC, PS3, PS4\*, PS5\*, Switch | - | RP2350 | yes | [GP2040-CE](https://gp2040-ce.info/)
 [rev9](hardware-rev9) | 218x130x11 | PC | - | SAMD21 | yes | [CircuitPython](firmware-circuitpython)
 
 \* - with caveats

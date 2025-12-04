@@ -35,15 +35,11 @@ The PCB you get from JLCPCB will look something like this:
 
 The switches can be soldered in directly to the PCB or you can use hotswap sockets.
 
-You can use any firmware compatible with the RP2350 chip. Here's how to use it with the HID Remapper firmware.
-
-First, download the [remapper_flatbox_rev8.uf2](https://github.com/jfedor2/hid-remapper/releases/latest/download/remapper_flatbox_rev8.uf2) firmware file from the latest release.
+For the firmware you probably want to use [GP2040-CE](https://gp2040-ce.info/). Go to the [GP2040-CE releases page](https://github.com/OpenStickCommunity/GP2040-CE/releases) and get the UF2 file for Flatbox rev8.
 
 To flash the firmware, connect the PCB to a computer with a USB cable, then press the RESET button while holding the BOOT button on the PCB. A drive named "RP2350" should appear. Copy the UF2 file you downloaded to that drive. That's it.
 
-Then go to the [HID Remapper configuration website](https://www.remapper.org/config/), in the Examples tab find the "Flatbox rev4/rev8" configuration and click on that. Then click "Open device" and connect to your device. Then click "Save to device" to save the configuration to your Flatbox. This configuration acts as a Switch gamepad, which should also work on PC. If you want to play on PS5, change the emulated device type to "PS4 arcade stick".
-
-For more information on how to use the HID Remapper firmware, see the project's [website](https://www.remapper.org/).
+(Of course you can also use any other RP2350-compatible firmware if you want.)
 
 If you want to modify the case or the PCB, check out the files in the [extras](extras) folder.
 
