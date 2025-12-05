@@ -38,12 +38,11 @@ There are various ways that you can put firmware on the board and make it into a
 1. Using an ST-Link V2 clone debug interface, put a UF2 bootloader on the board. Wire SWDIO, SWDCLK, RESET and GND lines between the ST-Link and the board and connect the board to a PC over USB for power. Then flash the bootloader with this command:<br>
 `openocd -f openocd_stlink_samd21.cfg -c "init; program bootloader-flatbox_rev9-1d99238.bin verify reset; shutdown"`
 2. Disconnect the ST-Link from the board.
-3. Now when you connect the board to a PC, a USB drive named "FLATBOXREV9" should appear. Copy the [CircuitPython UF2](binaries/adafruit-circuitpython-flatbox_rev9-en_US-20250410-main-79e1642.uf2) file to that drive.
-4. Now your board is running CircuitPython. When you connect it to a PC, a USB drive named "CIRCUITPY" should appear. Copy the files from the [firmware-circuitpython](../firmware-circuitpython) folder to that drive, then disconnect and reconnect the board. It should now show up as a game controller.
+3. Now when you connect the board to a PC, a USB drive named "FLATBOXREV9" should appear. Copy the [pgf-flatbox_rev9.uf2](https://github.com/jfedor2/portable-gamepad-firmware/releases/latest/download/pgf-flatbox_rev9.uf2) file to that drive. The board should now act as a game controller.
 
-You can find the Flatbox-specific UF2 bootloader and CircuitPython modifications [here](https://github.com/jfedor2/uf2-samdx1) and [here](https://github.com/jfedor2/circuitpython). The openocd_stlink_samd21.cfg file is taken from [here](https://github.com/todbot/samd21-programming-notes).
+The UF2 firmware file used above is the [Portable Gamepad Firmware](https://github.com/jfedor2/portable-gamepad-firmware). You can find the Flatbox-specific UF2 bootloader modifications [here](https://github.com/jfedor2/uf2-samdx1/tree/flatbox-rev9). The openocd_stlink_samd21.cfg file is taken from [here](https://github.com/todbot/samd21-programming-notes).
 
-If you ever need to get to the bootloader again to flash a different version of CircuitPython or some other UF2 file, press the RESET button twice quickly.
+You only have to flash the bootloader the first time. If you ever want to flash another UF2 file, press the RESET button twice quickly.
 
 If you want to modify the case or the PCB, check out the files in the [extras](extras) folder.
 
