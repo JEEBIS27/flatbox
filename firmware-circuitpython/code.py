@@ -15,20 +15,20 @@ dpad_pins = [prepare_pin(p) for p in [board.LEFT, board.RIGHT, board.UP, board.D
 button_pins = [
     prepare_pin(p)
     for p in [
-        board.SQUARE,
-        board.CROSS,
-        board.CIRCLE,
-        board.TRIANGLE,
+        board.WEST,
+        board.SOUTH,
+        board.EAST,
+        board.NORTH,
         board.L1,
         board.R1,
         board.L2,
         board.R2,
-        board.OPT2,
-        board.OPT1,
-        board.OPT5,
-        board.OPT6,
-        board.OPT3,
-        board.OPT4,
+        board.SELECT,
+        board.START,
+        board.L3,
+        board.R3,
+        board.HOME,
+        board.BUTTON14,
     ]
 ]
 
