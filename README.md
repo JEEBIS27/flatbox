@@ -4,7 +4,7 @@ This repository contains 3D-printable models, PCB design files and code needed t
 
 ![Assembled Flatbox](hardware-rev2/images/Flatbox-rev2b-finished-product.jpg)
 
-There are nine major versions of the Flatbox. They all use Kailh low profile (choc v1) mechanical keyboard switches. The table below lists their main features. See the README for each version for details on how to make them.
+There are ten major versions of the Flatbox. They all use Kailh low profile (choc v1) mechanical keyboard switches. The table below lists their main features. See the README for each version for details on how to make them.
 
 version | case dimensions (mm) | compatibility | add-on board | onboard chip | SMT assembly required | firmware
 ------- | --------------- | ------------- | ------------ | ------------ | --------------------- | --------
@@ -17,5 +17,6 @@ version | case dimensions (mm) | compatibility | add-on board | onboard chip | S
 [rev7](hardware-rev7) | 218x130x11 | PC | [Xiao nRF52840](https://www.seeedstudio.com/Seeed-XIAO-BLE-nRF52840-p-5201.html) | - | no | [slimbox-bt](https://github.com/jfedor2/slimbox-bt)
 [rev8](hardware-rev8) | 218x130x11 | PC, PS3, PS4\*, PS5\*, Switch | - | RP2350 | yes | [GP2040-CE](https://gp2040-ce.info/)
 [rev9](hardware-rev9) | 218x130x11 | PC | - | SAMD21 | yes | [PGF](https://github.com/jfedor2/portable-gamepad-firmware)
+[rev10](hardware-rev10) | 218x130x11 | PC | - | STM32G0B1 | yes | [PGF](https://github.com/jfedor2/portable-gamepad-firmware)
 
 \* - with caveats
