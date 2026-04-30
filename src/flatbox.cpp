@@ -242,7 +242,9 @@ void main_core1(void) {
 // These IDs are bogus. If you want to distribute any hardware using this,
 // you will have to get real ones.
 #define USB_VID 0x0F0D //0xCAFE -> 0x0F0D
-#define USB_PID 0x0092 //0xBABA -> 0x0092
+// Keep distinct product IDs per input mode to avoid host-side HID descriptor cache collisions.
+#define USB_PID_SWITCH 0x0092
+#define USB_PID_PS3    0x0093
 
 #ifdef FLATBOX_REV4
 
@@ -296,21 +298,45 @@ void main_core1(void) {
 
 uint32_t pin_mask = 1 << PIN_UP | 1 << PIN_DOWN | 1 << PIN_LEFT | 1 << PIN_RIGHT | 1 << PIN_A | 1 << PIN_B | 1 << PIN_X | 1 << PIN_Y | 1 << PIN_L1 | 1 << PIN_L2 | 1 << PIN_R1 | 1 << PIN_R2 | 1 << PIN_TILTE | 1 << PIN_START | 1 << PIN_SJ | 1 << PIN_NA | 1 << PIN_CUP | 1 << PIN_CDOWN | 1 << PIN_CLEFT | 1 << PIN_CRIGHT;
 
-static inline uint remap_pin_for_pro_mode(uint pin) {
+static inline uint remap_pin_for_input_modes(uint pin) {
     if (pro_mode == 1) {
         if (pin == PIN_DOWN) return PIN_LEFT;
         if (pin == PIN_LEFT) return PIN_DOWN;
+    }
+    if (dpad_mode == 1) {
+        if (pin == PIN_CUP) return PIN_UP;
+        if (pin == PIN_UP) return PIN_CDOWN;
+        if (pin == PIN_CDOWN) return PIN_CUP;
     }
     return pin;
 }
 
 static inline bool flatbox_gpio_get(uint pin) {
-    return gpio_get(remap_pin_for_pro_mode(pin));
+    return gpio_get(remap_pin_for_input_modes(pin));
 }
 
 #define gpio_get(pin) flatbox_gpio_get(pin)
 
-tusb_desc_device_t const desc_device = {
+static inline uint32_t read_active_pins_mask(void) {
+    static const uint tracked_pins[] = {
+        PIN_UP, PIN_DOWN, PIN_LEFT, PIN_RIGHT,
+        PIN_A, PIN_B, PIN_X, PIN_Y,
+        PIN_L1, PIN_L2, PIN_R1, PIN_R2,
+        PIN_TILTE, PIN_START, PIN_SJ, PIN_NA,
+        PIN_CUP, PIN_CDOWN, PIN_CLEFT, PIN_CRIGHT
+    };
+
+    uint32_t pins = 0;
+    for (uint i = 0; i < sizeof(tracked_pins) / sizeof(tracked_pins[0]); i++) {
+        const uint pin = tracked_pins[i];
+        if (!gpio_get(pin)) {
+            pins |= (1u << pin);
+        }
+    }
+    return pins;
+}
+
+tusb_desc_device_t desc_device = {
     .bLength = sizeof(tusb_desc_device_t),
     .bDescriptorType = TUSB_DESC_DEVICE,
     .bcdUSB = 0x0200,
@@ -320,7 +346,7 @@ tusb_desc_device_t const desc_device = {
     .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor = USB_VID,
-    .idProduct = USB_PID,
+    .idProduct = USB_PID_PS3,
     .bcdDevice = 0x0100,
 
     .iManufacturer = 0x01,
@@ -507,8 +533,32 @@ typedef struct __attribute__ ((packed)) {
     uint16_t gyroscopeAxis;             // 10 bits
 } hid_report_t;
 
+typedef struct __attribute__ ((packed)) {
+    uint16_t buttons;
+    uint8_t dpadHat;
+    uint8_t leftStickXAxis;
+    uint8_t leftStickYAxis;
+    uint8_t rightStickXAxis;
+    uint8_t rightStickYAxis;
+    uint8_t vendorData;
+} switch_hid_report_t;
+
 hid_report_t report;
 hid_report_t prevReport;
+switch_hid_report_t prevSwitchReport;
+
+static inline switch_hid_report_t to_switch_report(const hid_report_t* src) {
+    switch_hid_report_t dst = {
+        .buttons = src->buttons,
+        .dpadHat = src->dpadHat,
+        .leftStickXAxis = src->leftStickXAxis,
+        .leftStickYAxis = src->leftStickYAxis,
+        .rightStickXAxis = src->rightStickXAxis,
+        .rightStickYAxis = src->rightStickYAxis,
+        .vendorData = 0x00
+    };
+    return dst;
+}
 
 void cpad(bool cup, bool cdown, bool cleft, bool cright){
     if(cup && cdown) {
@@ -999,6 +1049,15 @@ void send_hid_report() {
         return;
     }
 
+    if (input_mode == 1) {
+        switch_hid_report_t switchReport = to_switch_report(&report);
+        if (memcmp(&prevSwitchReport, &switchReport, sizeof(switchReport))) {
+            tud_hid_report(0, &switchReport, sizeof(switchReport));
+            memcpy(&prevSwitchReport, &switchReport, sizeof(switchReport));
+        }
+        return;
+    }
+
     if (memcmp(&prevReport, &report, sizeof(report))) {
         tud_hid_report(0, &report, sizeof(report));
         memcpy(&prevReport, &report, sizeof(report));
@@ -1009,7 +1068,7 @@ void hid_task(void) {
     // bits: 0 = Y, 1 = B, 2 = A, 3 = X
     // 4 = L1, 5 = R1, 6 = L2, 7 = R2, 8 = select, 9 = start,
     // 10 = L3, 11 = R3, 12 = Home
-    uint32_t pins = ~gpio_get_all() & pin_mask;
+    uint32_t pins = read_active_pins_mask();
 
     EightBottuns = !gpio_get(PIN_A) || !gpio_get(PIN_B) || !gpio_get(PIN_L1) || (dpad_mode == 0 ? !gpio_get(PIN_R1) : !gpio_get(PIN_X) || !gpio_get(PIN_Y) || !gpio_get(PIN_L2));
     report.buttons = 0x00;
@@ -1158,7 +1217,7 @@ void pins_init(void) {
     g_read_data[3] = 0;
     load_setting_from_flash();
 
-    // INPUT_MODE: 1 = PC/PS3, 0 = NINTENDO SWITCH
+    // INPUT_MODE: 0 = PC/PS3, 1 = NINTENDO SWITCH
     if (!gpio_get(PIN_CUP)) {
         input_mode = 1;
     } else if (!gpio_get(PIN_CDOWN)) {
@@ -1170,6 +1229,8 @@ void pins_init(void) {
             input_mode = 0;
         }
     }
+
+    desc_device.idProduct = (input_mode == 1) ? USB_PID_SWITCH : USB_PID_PS3;
 
     if (!gpio_get(PIN_B)) {
         macro_mode = 1;
@@ -1230,6 +1291,7 @@ void report_init(void) {
     report.accelerometerYAxis = 0x0200;
     report.accelerometerZAxis = 0x0200;
     memcpy(&prevReport, &report, sizeof(report));
+    prevSwitchReport = to_switch_report(&report);
 }
 
 int main(void) {
