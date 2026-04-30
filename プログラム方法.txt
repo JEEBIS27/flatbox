@@ -1,0 +1,26 @@
+＜ソースコードの開き方＞
+①スタートメニューから[Developer Command Prompt for VS 2019]を管理者として開く → コマンドプロンプトが開く
+②ソースコードがあるフォルダにカレントディレクトリを移動する [例] cd c:\Pico\flatbox-j\flatbox-rp2040 ⏎
+③コマンドプロンプトからVisual Studio Codeを開く [例] code . ⏎
+④cmakeがエラーなく終了したことを確認する
+⑤Visual Studio Codeからsrcフォルダ配下のflatbox.cppをクリックする
+
+＜ビルド方法(Visual Studio Codeから実行する場合)＞
+①Visual Studio Codeの下にある Build を押す
+②Build finished with exit code 0 が表示されたらビルド完了
+
+
+＜ビルド方法(コマンドプロンプトから実行する場合)＞　CMakeLists.txt があるフォルダで以下を実行)
+mkdir build　　　　　　　　　　・・・buildフォルダを作成　←すでにbuildフォルダがある場合は作成不要（ただし、フォルダ移動後などでビルドが失敗する場合はbuildフォルダを削除してから実行）
+cd build　　　　　　　　　　　　・・・buildフォルダに移動
+cmake -G "NMake Makefiles" ..　　・・・ビルド準備
+nmake　　　　　　　　　　　　　　・・・ビルド
+
+
+＜Picoへ実行プログラムを書き込む方法＞
+①Picoのボタンを押しながらPCにUSBを挿す → Pico内のフォルダがエクスプローラで表示される
+②buildフォルダに生成された flatbox-rev4 または flatbox-rev5をPico内のフォルダにドラッグアンドドロップする → Picoに書き込まれる
+
+
+＜注意点＞
+ソースコードが入ったフォルダを移動させた場合は、build フォルダを削除してから、Visual Studio Codeを開き、cmakeがエラーなく終了することを確認する

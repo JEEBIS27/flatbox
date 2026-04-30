@@ -1,0 +1,5 @@
+/home/umada/git/flatbox/build-cli/pioasm-install/pioasm/pioasm
+/home/umada/git/flatbox/build-cli/pioasm-install/pioasm/pioasmTargets.cmake
+/home/umada/git/flatbox/build-cli/pioasm-install/pioasm/pioasmTargets-release.cmake
+/home/umada/git/flatbox/build-cli/pioasm-install/pioasm/pioasmConfig.cmake
+/home/umada/git/flatbox/build-cli/pioasm-install/pioasm/pioasmConfigVersion.cmake

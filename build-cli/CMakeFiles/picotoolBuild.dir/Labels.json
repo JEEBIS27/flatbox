@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/umada/git/flatbox/build-cli/CMakeFiles/picotoolBuild"
+		},
+		{
+			"file" : "/home/umada/git/flatbox/build-cli/CMakeFiles/picotoolBuild.rule"
+		},
+		{
+			"file" : "/home/umada/git/flatbox/build-cli/CMakeFiles/picotoolBuild-complete.rule"
+		},
+		{
+			"file" : "/home/umada/git/flatbox/build-cli/picotool/src/picotoolBuild-stamp/picotoolBuild-build.rule"
+		},
+		{
+			"file" : "/home/umada/git/flatbox/build-cli/picotool/src/picotoolBuild-stamp/picotoolBuild-configure.rule"
+		},
+		{
+			"file" : "/home/umada/git/flatbox/build-cli/picotool/src/picotoolBuild-stamp/picotoolBuild-download.rule"
+		},
+		{
+			"file" : "/home/umada/git/flatbox/build-cli/picotool/src/picotoolBuild-stamp/picotoolBuild-install.rule"
+		},
+		{
+			"file" : "/home/umada/git/flatbox/build-cli/picotool/src/picotoolBuild-stamp/picotoolBuild-mkdir.rule"
+		},
+		{
+			"file" : "/home/umada/git/flatbox/build-cli/picotool/src/picotoolBuild-stamp/picotoolBuild-patch.rule"
+		},
+		{
+			"file" : "/home/umada/git/flatbox/build-cli/picotool/src/picotoolBuild-stamp/picotoolBuild-test.rule"
+		},
+		{
+			"file" : "/home/umada/git/flatbox/build-cli/picotool/src/picotoolBuild-stamp/picotoolBuild-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"picotoolBuild"
+		],
+		"name" : "picotoolBuild"
+	}
+}

@@ -1,0 +1,7 @@
+/home/umada/git/flatbox/build-cli/pioasm/CMakeFiles/pioasm.dir
+/home/umada/git/flatbox/build-cli/pioasm/CMakeFiles/edit_cache.dir
+/home/umada/git/flatbox/build-cli/pioasm/CMakeFiles/rebuild_cache.dir
+/home/umada/git/flatbox/build-cli/pioasm/CMakeFiles/list_install_components.dir
+/home/umada/git/flatbox/build-cli/pioasm/CMakeFiles/install.dir
+/home/umada/git/flatbox/build-cli/pioasm/CMakeFiles/install/local.dir
+/home/umada/git/flatbox/build-cli/pioasm/CMakeFiles/install/strip.dir

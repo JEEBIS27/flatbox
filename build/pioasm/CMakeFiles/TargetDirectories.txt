@@ -1,0 +1,3 @@
+C:/Pico/flatbox-j/firmware-rp2040/build/pioasm/CMakeFiles/pioasm.dir
+C:/Pico/flatbox-j/firmware-rp2040/build/pioasm/CMakeFiles/edit_cache.dir
+C:/Pico/flatbox-j/firmware-rp2040/build/pioasm/CMakeFiles/rebuild_cache.dir

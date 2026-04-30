@@ -1,0 +1,7 @@
+/home/umada/git/flatbox/build-cli/_deps/picotool/picotool
+/home/umada/git/flatbox/build-cli/_deps/picotool/picotoolTargets.cmake
+/home/umada/git/flatbox/build-cli/_deps/picotool/picotoolTargets-release.cmake
+/home/umada/git/flatbox/build-cli/_deps/picotool/picotoolConfig.cmake
+/home/umada/git/flatbox/build-cli/_deps/picotool/picotoolConfigVersion.cmake
+/home/umada/git/flatbox/build-cli/_deps/picotool/enc_bootloader.elf
+/home/umada/git/flatbox/build-cli/_deps/picotool/enc_bootloader_mbedtls.elf

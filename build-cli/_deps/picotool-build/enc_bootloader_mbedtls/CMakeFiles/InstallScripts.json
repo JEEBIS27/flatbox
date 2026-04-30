@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/umada/git/flatbox/build-cli/_deps/picotool-build/enc_bootloader_mbedtls/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

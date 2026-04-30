@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/umada/git/flatbox/build-cli/_deps/pico_sdk-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

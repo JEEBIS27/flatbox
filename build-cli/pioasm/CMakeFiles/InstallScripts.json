@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/umada/git/flatbox/build-cli/pioasm/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

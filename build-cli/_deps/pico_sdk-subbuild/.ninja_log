@@ -1,0 +1,21 @@
+# ninja log v7
+0	7	1777200897312470677	pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-mkdir	8cdde2fc2165ef56
+0	7	1777200897312470677	/home/umada/git/flatbox/build-cli/_deps/pico_sdk-subbuild/pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-mkdir	8cdde2fc2165ef56
+7	69977	1777200966262123122	pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-download	23bf7c473d0a650f
+7	69977	1777200966262123122	/home/umada/git/flatbox/build-cli/_deps/pico_sdk-subbuild/pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-download	23bf7c473d0a650f
+69977	71607	1777200966262123122	pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-update	4c684e79169b0fec
+69977	71607	1777200966262123122	/home/umada/git/flatbox/build-cli/_deps/pico_sdk-subbuild/pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-update	4c684e79169b0fec
+71607	71613	1777200967896125207	pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-patch	6994ecdb8615f15d
+71607	71613	1777200967896125207	/home/umada/git/flatbox/build-cli/_deps/pico_sdk-subbuild/pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-patch	6994ecdb8615f15d
+71613	71619	1777200967900189896	pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-configure	2c9aecb79adcbae
+71613	71619	1777200967900189896	/home/umada/git/flatbox/build-cli/_deps/pico_sdk-subbuild/pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-configure	2c9aecb79adcbae
+71619	71625	1777200967908319273	pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-build	337d864681a5fa3b
+71619	71625	1777200967908319273	/home/umada/git/flatbox/build-cli/_deps/pico_sdk-subbuild/pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-build	337d864681a5fa3b
+71625	71633	1777200967912383961	pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-install	eb4ebb6d3dc7c5a8
+71625	71633	1777200967912383961	/home/umada/git/flatbox/build-cli/_deps/pico_sdk-subbuild/pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-install	eb4ebb6d3dc7c5a8
+71633	71639	1777200967920513338	pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-test	247a15629d8d96c1
+71633	71639	1777200967920513338	/home/umada/git/flatbox/build-cli/_deps/pico_sdk-subbuild/pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-test	247a15629d8d96c1
+71639	71648	1777200967928642715	CMakeFiles/pico_sdk-populate-complete	92749bf8bd2358b2
+71639	71648	1777200967928642715	pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-done	92749bf8bd2358b2
+71639	71648	1777200967928642715	/home/umada/git/flatbox/build-cli/_deps/pico_sdk-subbuild/CMakeFiles/pico_sdk-populate-complete	92749bf8bd2358b2
+71639	71648	1777200967928642715	/home/umada/git/flatbox/build-cli/_deps/pico_sdk-subbuild/pico_sdk-populate-prefix/src/pico_sdk-populate-stamp/pico_sdk-populate-done	92749bf8bd2358b2
