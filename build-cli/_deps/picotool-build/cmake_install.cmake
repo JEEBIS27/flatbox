@@ -99,6 +99,7 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
   include("/home/umada/git/flatbox/build-cli/_deps/picotool-build/lib/cmake_install.cmake")
+  include("/home/umada/git/flatbox/build-cli/_deps/picotool-build/model/cmake_install.cmake")
   include("/home/umada/git/flatbox/build-cli/_deps/picotool-build/errors/cmake_install.cmake")
   include("/home/umada/git/flatbox/build-cli/_deps/picotool-build/picoboot_connection/cmake_install.cmake")
   include("/home/umada/git/flatbox/build-cli/_deps/picotool-build/elf/cmake_install.cmake")

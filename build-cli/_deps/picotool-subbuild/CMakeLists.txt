@@ -1,7 +1,7 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file LICENSE.rst or https://cmake.org/licensing for details.
 
-cmake_minimum_required(VERSION 4.3.2)
+cmake_minimum_required(VERSION 4.2.3)
 
 # Reject any attempt to use a toolchain file. We must not use one because
 # we could be downloading it here. If the CMAKE_TOOLCHAIN_FILE environment
@@ -19,15 +19,15 @@ project(picotool-populate NONE)
 # Pass through things we've already detected in the main project to avoid
 # paying the cost of redetecting them again in ExternalProject_Add()
 set(GIT_EXECUTABLE [==[/usr/bin/git]==])
-set(Git_VERSION [==[2.43.0]==])
+set(Git_VERSION [==[2.53.0]==])
 set_property(GLOBAL PROPERTY _CMAKE_FindGit_GIT_EXECUTABLE_VERSION
-  [==[/usr/bin/git;2.43.0]==]
+  [==[/usr/bin/git;2.53.0]==]
 )
 
 
 include(ExternalProject)
 ExternalProject_Add(picotool-populate
-                     "GIT_REPOSITORY" "https://github.com/raspberrypi/picotool.git" "GIT_TAG" "2.2.0"
+                     "GIT_REPOSITORY" "https://github.com/raspberrypi/picotool.git" "GIT_TAG" "2.3.0"
                     SOURCE_DIR          "/home/umada/git/flatbox/build-cli/_deps/picotool-src"
                     BINARY_DIR          "/home/umada/git/flatbox/build-cli/_deps/picotool-build"
                     CONFIGURE_COMMAND   ""

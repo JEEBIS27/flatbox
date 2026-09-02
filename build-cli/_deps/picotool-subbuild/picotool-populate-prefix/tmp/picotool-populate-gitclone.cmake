@@ -52,13 +52,13 @@ endif()
 
 execute_process(
   COMMAND "/usr/bin/git"
-          checkout "2.2.0" --
+          checkout "2.3.0" --
   WORKING_DIRECTORY "/home/umada/git/flatbox/build-cli/_deps/picotool-src"
   RESULT_VARIABLE error_code
   ${maybe_show_command}
 )
 if(error_code)
-  message(FATAL_ERROR "Failed to checkout tag: '2.2.0'")
+  message(FATAL_ERROR "Failed to checkout tag: '2.3.0'")
 endif()
 
 set(init_submodules TRUE)

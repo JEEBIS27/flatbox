@@ -10,5 +10,6 @@ Run:
 ./build.sh
 ```
 
+The Pico SDK fetches its required `picotool` automatically, and the script checks for the host toolchain (`cmake`, `arm-none-eabi-gcc`, `g++`, and `ninja`/`make`) before configuring.
 If `PICO_SDK_PATH` is not set, the script configures CMake with `-DPICO_SDK_FETCH_FROM_GIT=ON`.
 Default build output directory is `build-cli` (you can change it with `./build.sh <build-dir>`).

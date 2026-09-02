@@ -204,6 +204,11 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
+  include("/home/umada/git/flatbox/build-cli/pico-sdk/src/rp2_common/hardware_rosc/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
   include("/home/umada/git/flatbox/build-cli/pico-sdk/src/rp2_common/hardware_rtc/cmake_install.cmake")
 endif()
 
@@ -344,6 +349,11 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
+  include("/home/umada/git/flatbox/build-cli/pico-sdk/src/rp2_common/pico_low_power/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
   include("/home/umada/git/flatbox/build-cli/pico-sdk/src/rp2_common/pico_mem_ops/cmake_install.cmake")
 endif()
 
@@ -360,6 +370,11 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
   include("/home/umada/git/flatbox/build-cli/pico-sdk/src/rp2_common/pico_rand/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
+  include("/home/umada/git/flatbox/build-cli/pico-sdk/src/rp2_common/pico_thread_local/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
@@ -390,6 +405,11 @@ endif()
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
   include("/home/umada/git/flatbox/build-cli/pico-sdk/src/rp2_common/pico_stdio_usb/cmake_install.cmake")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for the subdirectory.
+  include("/home/umada/git/flatbox/build-cli/pico-sdk/src/rp2_common/pico_usb_reset/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
