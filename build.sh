@@ -2,8 +2,18 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR_NAME="${1:-build-cli}"
+BUILD_DIR_NAME="${1:-build-local}"
 BUILD_DIR_PATH="${ROOT_DIR}/${BUILD_DIR_NAME}"
+
+# Supply the toolchain automatically on Nix hosts.
+if [[ -z "${FLATBOX_NIX_BUILD:-}" ]] && command -v nix-shell >/dev/null 2>&1 &&
+   { ! command -v cmake >/dev/null 2>&1 || ! command -v arm-none-eabi-gcc >/dev/null 2>&1; }; then
+  export FLATBOX_NIX_BUILD=1
+  export FLATBOX_BUILD_SCRIPT="${ROOT_DIR}/build.sh"
+  export FLATBOX_BUILD_DIR="${BUILD_DIR_NAME}"
+  export NIX_BUILD_SHELL="$(command -v bash)"
+  exec nix-shell "${ROOT_DIR}/shell.nix" --run 'exec bash "$FLATBOX_BUILD_SCRIPT" "$FLATBOX_BUILD_DIR"'
+fi
 
 if command -v cmake >/dev/null 2>&1; then
   CMAKE_BIN="cmake"
@@ -51,6 +61,17 @@ fi
 export PICOTOOL_FORCE_FETCH_FROM_GIT=ON
 
 CMAKE_CONFIGURE_ARGS=()
+# Preserve relocated build trees, including nested dependency caches.
+if [[ -d "${BUILD_DIR_PATH}" ]]; then
+  while IFS= read -r -d '' cache; do
+    if ! grep -Fxq "CMAKE_CACHEFILE_DIR:INTERNAL=$(dirname "${cache}")" "${cache}"; then
+      backup_dir="$(mktemp -d /tmp/flatbox-build-backup.XXXXXX)"
+      mv -- "${BUILD_DIR_PATH}" "${backup_dir}/build"
+      echo "Notice: relocated CMake cache; previous build saved to ${backup_dir}/build"
+      break
+    fi
+  done < <(find "${BUILD_DIR_PATH}" -name CMakeCache.txt -print0)
+fi
 if [[ -n "${NINJA_BIN:-}" && "${GENERATOR}" == "Ninja" ]]; then
   CMAKE_CONFIGURE_ARGS+=("-DCMAKE_MAKE_PROGRAM=${NINJA_BIN}")
 fi
