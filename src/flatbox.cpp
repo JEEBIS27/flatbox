@@ -4,9 +4,12 @@
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <initializer_list>
 #include "bsp/board.h"
 #include "tusb.h"
 #include "hardware/gpio.h"
+#include "macro_player.h"
+#include "neutral_direction_filter.h"
 #define _USE_MATH_DEFINES
 
 int input_mode = 0;
@@ -23,121 +26,17 @@ bool EightBottuns = false;
 bool prevEight = false;
 bool moving = false;
 bool moving2 = false;
-bool Release1 = false;
-bool Release2 = false;
-bool Buffer1 = false;
-bool Buffer2 = false;
 
-using Frame = int32_t;
-constexpr Frame operator"" _f(unsigned long long v) {
-    return static_cast<Frame>(v);
-}
-
-struct FrameTimer {
-    bool active;
-    Frame elapsed;
-    Frame duration;
-};
-
-struct FrameClock {
-    uint64_t next_tick_us;
-    uint8_t rem_accum;
-};
-
+struct FrameClock { uint64_t next_tick_us; uint8_t rem_accum; };
 constexpr uint32_t BASE_US = 16666;
 constexpr uint8_t REM_US = 40;
-constexpr Frame ms_to_frames(uint32_t ms) {
-    return ms == 0 ? 0_f : static_cast<Frame>((ms * 60 + 500) / 100001);
-}
-
-constexpr Frame NA_FRAMES = 3;
-constexpr Frame NB_FRAMES = 3;
-constexpr Frame DRAGON_FRAMES = 5;
-constexpr Frame DRAGON_PHASE1_FRAMES = 2;
-constexpr Frame CHANGE_FRAMES = 2;
-constexpr Frame NIL1_FRAMES = 20;
-constexpr Frame NIL2_FRAMES = 18;
-constexpr Frame BUFFER_FRAMES = 5;
-constexpr Frame CT = 18;
-constexpr Frame NIL1_SHORTCUT_FRAMES = 7;
-constexpr Frame NIL1_PHASE1_END_FRAMES = 3;
-constexpr Frame NIL1_PHASE2_END_FRAMES = 13;
-constexpr Frame NIL1_PHASE3_END_FRAMES = 15;
-constexpr Frame NIL2_PHASE1_END_FRAMES = 7;
-constexpr Frame NIL2_PHASE2_END_FRAMES = 10.5;
-constexpr Frame NIL2_PHASE3_END_FRAMES = 13;
-
-FrameTimer na_timer {false, 0_f, NA_FRAMES};
-FrameTimer nb_timer {false, 0_f, NB_FRAMES};
-FrameTimer dragon_timer {false, 0_f, DRAGON_FRAMES};
-FrameTimer change_timer {false, 0_f, CHANGE_FRAMES};
-FrameTimer nil1_timer {false, 0_f, NIL1_FRAMES + CT};
-FrameTimer nil2_timer {false, 0_f, NIL2_FRAMES + CT};
-Frame cooltime = 0_f;
 FrameClock macro_clock {0, 0};
 bool frame_tick = false;
-
-static inline Frame timer_value(const FrameTimer& timer) {
-    return timer.active ? timer.elapsed : 0_f;
+static MacroPlayer player, neutral_attack, neutral_special, yoga;
+static unsigned macro_policy() {
+    return player.policy() | neutral_attack.policy() | neutral_special.policy() | yoga.policy();
 }
-
-static inline void timer_start(FrameTimer& timer) {
-    timer.active = true;
-    timer.elapsed = 1_f;
-}
-
-static inline void timer_stop(FrameTimer& timer) {
-    timer.active = false;
-    timer.elapsed = 0_f;
-}
-
-static inline void timer_set(FrameTimer& timer, Frame value) {
-    timer.active = value > 0_f;
-    timer.elapsed = value > 0_f ? value : 0_f;
-}
-
-static inline void step_timer(FrameTimer& timer) {
-    if (frame_tick && timer.active && timer.elapsed < timer.duration) {
-        ++timer.elapsed;
-    }
-}
-
-struct MacroRule {
-    FrameTimer* timer;
-    bool (*start_cond)();
-    bool (*cancel_cond)();
-    void (*on_enter)();
-    void (*on_exit)();
-};
-
-static inline void step_rule(const MacroRule& rule) {
-    FrameTimer& timer = *rule.timer;
-    if (!timer.active) {
-        if (rule.start_cond && rule.start_cond()) {
-            timer_start(timer);
-            if (rule.on_enter) {
-                rule.on_enter();
-            }
-        }
-        return;
-    }
-
-    step_timer(timer);
-
-    if (timer.elapsed == timer.duration && rule.cancel_cond && rule.cancel_cond()) {
-        if (rule.on_exit) {
-            rule.on_exit();
-        }
-        timer_stop(timer);
-    }
-}
-
-#define NAtime timer_value(na_timer)
-#define NBtime timer_value(nb_timer)
-#define Dragontime timer_value(dragon_timer)
-#define Changetime timer_value(change_timer)
-#define NIL1time timer_value(nil1_timer)
-#define NIL2time timer_value(nil2_timer)
+static bool macro_blocks(unsigned policy) { return (macro_policy() & policy) != 0; }
 
 int prevSUM = 0;
 
@@ -149,7 +48,7 @@ int hold_timeX = 10;
 int hold_timeY = 24;
 int prev_x_value = 0;
 int prev_y_value = 0;
-int x_i = 0; //左右どちらかに入力され続けた回数(0でリセット)
+int x_i = 0; // Signed 60 Hz direction-hold frame counters.
 int y_i = 0;
 
 // ##### multicore ##################################### START
@@ -440,7 +339,8 @@ static inline uint remap_pin_for_input_modes(uint pin) {
     } else if (dpad_mode == 0) { // smash
         if (pin == PIN_TILTE) return PIN_SJ;
         if (pin == PIN_SJ) return PIN_TILTE;
-        if (pin == PIN_UP) return PIN_LEFT;
+        if (pin == PIN_UP) return PIN_NA;
+        if (pin == PIN_NA) return PIN_LEFT;
         if (pin == PIN_LEFT) return PIN_DOWN;
         if (pin == PIN_DOWN) return PIN_UP;
     }
@@ -738,7 +638,7 @@ void cpad(bool cup, bool cdown, bool cleft, bool cright){
         report.dpadDownAxis = 0x00;
         report.dpadHat = 0x0f;
     }
-    if(dpad_mode != 0 || NAtime > 0 || NBtime > 0 && NBtime < NB_FRAMES || NIL1time > 0 && NIL1time < NIL1_FRAMES || NIL2time > 0 && NIL2time < NIL2_FRAMES){
+    if(dpad_mode != 0 || macro_blocks(BlockCpad)){
         cup = cdown = cleft = cright = false;
     }
     if(macro_mode > 0 && gpio_get(PIN_B) && ((cleft || cright) && !(cup || cdown) || !(cleft || cright) && (cup || cdown))){
@@ -754,45 +654,20 @@ void cpad(bool cup, bool cdown, bool cleft, bool cright){
         report.rightStickYAxis = 0x80;
     }
 }
-static bool should_start_na(void) {
-    return !gpio_get(PIN_NA) && NIL1time == 0 && NIL2time == 0;
+static void apply_step(const MacroStep& step) {
+    report.buttons |= step.buttons;
+    switch (step.stick) {
+        case Stick::Keep: break;
+        case Stick::Neutral: report.leftStickXAxis = 128; report.leftStickYAxis = 128; break;
+        case Stick::Down: report.leftStickXAxis = 128; report.leftStickYAxis = 255; break;
+        case Stick::Diagonal: report.leftStickXAxis = player.direction < 0 ? 38 : 218; report.leftStickYAxis = 218; break;
+        case Stick::Side: report.leftStickXAxis = player.direction < 0 ? 0 : 255; report.leftStickYAxis = 128; break;
+    }
+    if (step.apply) step.apply();
 }
+#include "macro_definitions.inc"
 
-static bool should_cancel_na(void) {
-    return gpio_get(PIN_NA);
-}
-
-static bool should_start_nb(void) {
-    return !gpio_get(PIN_Y) && ((!SJ && macro_mode == 1) || macro_mode > 1);
-}
-
-static bool should_cancel_nb(void) {
-    return gpio_get(PIN_Y);
-}
-
-static bool should_start_dragon(void) {
-    return SJ && EightBottuns && abs(x_i) >= y_i && !gpio_get(PIN_DOWN) &&
-           ((!gpio_get(PIN_LEFT) && gpio_get(PIN_RIGHT)) || (gpio_get(PIN_LEFT) && !gpio_get(PIN_RIGHT))) &&
-           gpio_get(PIN_TILTE);
-}
-
-static bool should_cancel_dragon(void) {
-    return gpio_get(PIN_DOWN) || (gpio_get(PIN_LEFT) && gpio_get(PIN_RIGHT)) ||
-           (!gpio_get(PIN_LEFT) && !gpio_get(PIN_RIGHT)) || !EightBottuns;
-}
-
-static bool should_start_change(void) {
-    return !gpio_get(PIN_LEFT) && !gpio_get(PIN_RIGHT) && !gpio_get(PIN_DOWN) && gpio_get(PIN_UP) &&
-           gpio_get(PIN_CLEFT) && gpio_get(PIN_CRIGHT) && gpio_get(PIN_CUP) && gpio_get(PIN_CDOWN) &&
-           gpio_get(PIN_TILTE) && abs(y_i) > 1;
-}
-
-static bool should_cancel_change(void) {
-    return gpio_get(PIN_LEFT) || gpio_get(PIN_RIGHT) || gpio_get(PIN_DOWN) || !gpio_get(PIN_UP) ||
-           !gpio_get(PIN_CLEFT) || !gpio_get(PIN_CRIGHT) || !gpio_get(PIN_CUP) || !gpio_get(PIN_CDOWN);
-}
-
-void macro(){
+static void update_macro_state(){
     if(gpio_get(PIN_NA) && !gpio_get(PIN_CLEFT) && !gpio_get(PIN_CRIGHT) && !gpio_get(PIN_CUP) && !gpio_get(PIN_CDOWN)){
         if (!gpio_get(PIN_B)) {
             macro_mode = 1; //Steve
@@ -812,204 +687,50 @@ void macro(){
         }
     }
 
-    static const MacroRule rules[] = {
-        {&na_timer, should_start_na, should_cancel_na, nullptr, nullptr},
-        {&nb_timer, should_start_nb, should_cancel_nb, nullptr, nullptr},
-        {&dragon_timer, should_start_dragon, should_cancel_dragon, nullptr, nullptr},
-        {&change_timer, should_start_change, should_cancel_change, nullptr, nullptr},
-    };
-    for (const MacroRule& rule : rules) {
-        step_rule(rule);
+    // Advance existing sequences before accepting fresh events.
+    if (frame_tick) {
+        player.tick(); neutral_attack.tick(); neutral_special.tick(); yoga.tick();
     }
+    if (dpad_mode == 0) {
+        neutral_attack.clear();
+        neutral_special.clear();
+    }
+    bool accepted = false;
+    for (auto& binding : macro_bindings) {
+        const bool triggered = binding.trigger();
+        if (binding.trigger_mode == TriggerMode::QueuedEdge) {
+            if (triggered && !binding.previous && !accepted && macro_mode > 0) {
+                player.request(*binding.definition, x_i < 0 ? -1 : 1);
+                accepted = true;
+            }
+        } else {
+            auto& state = *binding.state;
+            if (state.holding() && binding.released()) state.clear();
+            if (!state.active() && triggered) state.request(*binding.definition);
+        }
+        binding.previous = triggered;
+    }
+    if (macro_mode == 0) player.clear();
+}
 
-    //####################<NIL1>start
-    if((NIL1time != 0 || NIL2time != 0) && gpio_get(PIN_B) && !Release1){
-        Release1 = true;
+static void apply_macro_outputs() {
+    // Normal input is computed first; macro outputs are the final overlay.
+    for (auto state : {&neutral_attack, &neutral_special, &yoga, &player}) {
+        if (state->step()) apply_step(*state->step());
     }
-    else if((NIL1time != 0 || NIL2time != 0) && !gpio_get(PIN_B) && Release1){
-        Release1 = false;
-        Buffer1  = true;
-    }
-    step_timer(nil1_timer);
-    if(NIL1time == 0 && (cooltime == 0 || cooltime == CT) && !gpio_get(PIN_B) && SJ && macro_mode == 1){
-        timer_start(nil1_timer);
-        Release1 = false;
-    }
-    else if(NIL1time == NIL1_FRAMES + CT && gpio_get(PIN_B)){
-        Release1 = false;
-        Buffer1  = false;
-        timer_stop(nil1_timer);
-    }
-    if(NIL1time == NIL1_FRAMES + CT && (cooltime == 0 || cooltime == CT) && Buffer1){
-        timer_start(nil1_timer);
-        Release1 = false;
-        Buffer1  = false;
-    }
-    //####################<NIL1>end
-
-    //####################<NIL2>start
-    if((NIL1time != 0 || NIL2time != 0) && gpio_get(PIN_Y) && !Release2){
-        Release2 = true;
-    }
-    else if((NIL1time != 0 || NIL2time != 0) && !gpio_get(PIN_Y) && Release2){
-        Release2 = false;
-        Buffer2  = true;
-    }
-    step_timer(nil2_timer);
-    if(NIL2time == 0 && (cooltime == 0 || cooltime == CT) && gpio_get(PIN_CLEFT) && gpio_get(PIN_CRIGHT) && !gpio_get(PIN_Y) && SJ && macro_mode == 1){
-        timer_start(nil2_timer);
-        Release2 = false;
-    }
-    else if(NIL2time == NIL2_FRAMES + CT && gpio_get(PIN_Y)){
-        Release2 = false;
-        Buffer2  = false;
-        timer_stop(nil2_timer);
-    }
-    if(NIL2time == NIL2_FRAMES + CT && (cooltime == 0 || cooltime == CT) && Buffer2){
-        timer_start(nil2_timer);
-        Release2 = false;
-        Buffer2  = false;
-    }
-    //####################<NIL2>end
-
-    //####################<NA NB>start
-    if(NAtime > 0 && NAtime < NA_FRAMES){
-        if(dpad_mode == 0){
-            report.buttons |= 1 << 2;
-        }
-        if (macro_mode == 1) {
-          report.leftStickXAxis = 0x80;
-          report.leftStickYAxis = 0x80;
-        }
-    }
-    if(NBtime > 0 && NBtime < NB_FRAMES){
-        report.buttons |= 1 << 0;
-        if (macro_mode == 1) {
-          report.leftStickXAxis = 0x80;
-          report.leftStickYAxis = 0x80;
-        }
-    }
-    //####################END
-
-    //####################<Yoga>start
-    if(Changetime > 0 && Changetime < CHANGE_FRAMES){
-        report.leftStickXAxis = 0x80;
-        report.leftStickYAxis = 0xFF;
-    }
-    else if(Changetime == CHANGE_FRAMES){
-        report.leftStickXAxis = SJ && EightBottuns ? (x_i > 0 ? 0x00 : 0xFF) : (x_i > 0 ? 38 : 218);
-        report.leftStickYAxis = SJ && EightBottuns ? 128 : 218;
-    }
-    //####################END
-
-    //####################<Dragon>start
-    if(Dragontime > 0 && Dragontime <= DRAGON_PHASE1_FRAMES){
-        report.leftStickXAxis = 0x80;
-        report.leftStickYAxis = 0xFF;
-    }
-    else if(Dragontime > DRAGON_PHASE1_FRAMES && Dragontime < DRAGON_FRAMES){
-        report.leftStickXAxis = x_i < 0 ? 38 : 218;
-        report.leftStickYAxis = 218;
-    }
-    else if(Dragontime == DRAGON_FRAMES){
-        report.leftStickXAxis = x_i < 0 ? 0x00 : 0xFF;
-        report.leftStickYAxis = 0x80;
-    }
-    //####################END
-
-    //####################<NIL1>start
-    if((NIL1time > 0) && (NIL1time <= NIL1_PHASE1_END_FRAMES)){
-        report.buttons |= 1 << 6;
-        report.leftStickXAxis = 128 + ((!gpio_get(PIN_RIGHT) ? 1 : 0) - (!gpio_get(PIN_LEFT) ? 1 : 0)) * (TILTE ? tilt_abs_value : 127);
-        report.leftStickYAxis = !gpio_get(PIN_UP) ? 0x00 : 0x80;
-        if(NIL1time == NA_FRAMES && (!gpio_get(PIN_RIGHT) || !gpio_get(PIN_LEFT)) && gpio_get(PIN_DOWN) && gpio_get(PIN_UP) && gpio_get(PIN_TILTE))
-            timer_set(nil1_timer, NIL1_SHORTCUT_FRAMES);
-    }
-    else if((NIL1time > NIL1_PHASE1_END_FRAMES) && (NIL1time <= NIL1_PHASE2_END_FRAMES)){
-        report.leftStickXAxis = 128 + ((!gpio_get(PIN_RIGHT) ? 1 : 0) - (!gpio_get(PIN_LEFT) ? 1 : 0)) * (TILTE ? tilt_abs_value : 127);
-        report.leftStickYAxis = !gpio_get(PIN_UP) ? 0x00 : 0x80;
-    }
-    else if((NIL1time > NIL1_PHASE2_END_FRAMES) && (NIL1time <= NIL1_PHASE3_END_FRAMES)){
-        report.buttons |= 1 << 1;
-        report.leftStickXAxis = 0x80;
-        report.leftStickYAxis = 0x80;
-    }
-    else if((NIL1time > NIL1_PHASE3_END_FRAMES) && (NIL1time <= NIL1_FRAMES)){
-        report.leftStickXAxis = !gpio_get(PIN_RIGHT) ? 0xCD : (!gpio_get(PIN_LEFT) ? 0x32 : 0x80);
-        report.leftStickYAxis = !gpio_get(PIN_UP) ? 0x00 : 0x80;
-    }
-    else if((NIL1time > NIL1_FRAMES) && (NIL1time <= NIL1_FRAMES + BUFFER_FRAMES)){
-        if(!gpio_get(PIN_NA)){
-            report.buttons |= 1 << 1;
-            report.buttons |= 1 << 2;
-            report.leftStickXAxis = !gpio_get(PIN_RIGHT) ? 0xFF : (!gpio_get(PIN_LEFT) ? 0x00 : 0x80);
-            report.leftStickYAxis = gpio_get(PIN_RIGHT) && gpio_get(PIN_LEFT) || !gpio_get(PIN_UP) ? 0x00 : 0x80;
-        }
-        else if(!gpio_get(PIN_CUP)){
-            report.rightStickXAxis = 0x80;
-            report.rightStickYAxis = 0x00;
-            report.leftStickXAxis = !gpio_get(PIN_RIGHT) ? 0xCD : (!gpio_get(PIN_LEFT) ? 0x32 : 0x80);
-            report.leftStickYAxis = !gpio_get(PIN_UP) ? 0x00 : 0x80;
-        }
-        else{
-            timer_set(nil1_timer, NIL1_FRAMES + CT);
-        }
-    }
-    else if((NIL1time > NIL1_FRAMES + BUFFER_FRAMES) && (NIL1time < NIL1_FRAMES + CT)){
-        report.leftStickXAxis = !gpio_get(PIN_RIGHT) ? 0xCD : (!gpio_get(PIN_LEFT) ? 0x32 : 0x80);
-        report.leftStickYAxis = !gpio_get(PIN_UP) ? 0x00 : 0x80;
-    }
-    //####################END
-
-    //####################<NIL2>start
-    if((NIL2time > 0) && (NIL2time <= NIL2_PHASE1_END_FRAMES)){
-        report.buttons |= 1 << 6;
-        report.leftStickXAxis = !gpio_get(PIN_RIGHT) ? 0xFF : (!gpio_get(PIN_LEFT) ? 0x00 : 0x80);
-        report.leftStickYAxis = 0x80;
-    }
-    else if((NIL2time > NIL2_PHASE1_END_FRAMES) && (NIL2time <= NIL2_PHASE2_END_FRAMES)){
-        report.leftStickXAxis = !gpio_get(PIN_RIGHT) ? 0xFF : (!gpio_get(PIN_LEFT) ? 0x00 : 0x80);
-        report.leftStickYAxis = 0x80;
-    }
-    else if((NIL2time > NIL2_PHASE2_END_FRAMES) && (NIL2time <= NIL2_PHASE3_END_FRAMES)){
-        report.buttons |= 1 << 6;
-        report.buttons |= 1 << 1;
-        report.leftStickXAxis = 0x80;
-        report.leftStickYAxis = 0x80;
-    }
-    else if((NIL2time > NIL2_PHASE3_END_FRAMES) && (NIL2time <= NIL2_FRAMES)){
-        report.leftStickXAxis = !gpio_get(PIN_RIGHT) ? 0xB9 : (!gpio_get(PIN_LEFT) ? 0x46 : 0x80);
-        report.leftStickYAxis = !gpio_get(PIN_UP) ? 0x00 : (!gpio_get(PIN_DOWN) ? 0xFF : 0x80);
-    }
-    else if((NIL2time > NIL2_FRAMES) && (NIL2time <= NIL2_FRAMES + BUFFER_FRAMES)){
-        if(!gpio_get(PIN_NA)){
-            report.buttons |= 1 << 1;
-            report.buttons |= 1 << 2;
-            report.leftStickXAxis = !gpio_get(PIN_RIGHT) ? 0xCD : (!gpio_get(PIN_LEFT) ? 0x32 : 0x80);
-            report.leftStickYAxis = gpio_get(PIN_RIGHT) && gpio_get(PIN_LEFT) || !gpio_get(PIN_UP) ? 0x00 : 0x80;
-        }
-        else if(!gpio_get(PIN_CUP)){
-            report.rightStickXAxis = 0x80;
-            report.rightStickYAxis = 0x00;
-            report.leftStickXAxis = !gpio_get(PIN_RIGHT) ? 0xB9 : (!gpio_get(PIN_LEFT) ? 0x46 : 0x80);
-            report.leftStickYAxis = !gpio_get(PIN_UP) ? 0x00 : (!gpio_get(PIN_DOWN) ? 0xFF : 0x80);
-        }
-        else{
-            timer_set(nil2_timer, NIL2_FRAMES + CT);
-        }
-    }
-    else if((NIL2time > NIL2_FRAMES + BUFFER_FRAMES) && (NIL2time < NIL2_FRAMES + CT)){
-        report.leftStickXAxis = !gpio_get(PIN_RIGHT) ? 0xCD : (!gpio_get(PIN_LEFT) ? 0x32 : 0x80);
-        report.leftStickYAxis = !gpio_get(PIN_UP) ? 0x00 : 0x80;
-    }
-    //####################END
 }
 
 void dpad(bool cup, bool cdown, bool cleft, bool cright) {
-    int up = !gpio_get(PIN_UP) ? 1 : 0;
-    int down = !gpio_get(PIN_DOWN) ? 1 : 0;
-    int left = !gpio_get(PIN_LEFT) ? 1 : 0;
-    int right = !gpio_get(PIN_RIGHT) ? 1 : 0;
+    static NeutralDirectionFilter neutral_filter;
+    const uint32_t held = (!gpio_get(PIN_UP) ? 1u : 0u) |
+                          (!gpio_get(PIN_DOWN) ? 2u : 0u) |
+                          (!gpio_get(PIN_LEFT) ? 4u : 0u) |
+                          (!gpio_get(PIN_RIGHT) ? 8u : 0u);
+    const uint32_t directions = neutral_filter.update(smash_neutral_pressed(), held);
+    int up = (directions & 1u) != 0;
+    int down = (directions & 2u) != 0;
+    int left = (directions & 4u) != 0;
+    int right = (directions & 8u) != 0;
     int x_value;
     int y_value;
     int quadrant;
@@ -1018,7 +739,7 @@ void dpad(bool cup, bool cdown, bool cleft, bool cright) {
     int left_value = 180;
     int down_value = 270;
     int right_value = (1 - up) * 360;
-    if(NAtime > 0 && NAtime < NA_FRAMES || NBtime > 0 && NBtime < NB_FRAMES){
+    if(macro_blocks(CenterDirections)){
         left = right = up = down = 0;
     }
     if(prevSUM == 0 && left + right + up + down > 0 && (cleft || cright || cup || cdown) && !moving){
@@ -1077,7 +798,7 @@ void dpad(bool cup, bool cdown, bool cleft, bool cright) {
                 else{
                     prev_x_value = right - left;
                     if(down + up <= 1){
-                        if(frame_tick || !(Changetime == 0 && Dragontime == 0 && NAtime == 0 && NBtime == 0 && NIL1time == 0 && NIL2time == 0 && (cooltime == 0 || cooltime == CT))){
+                        if(frame_tick){
                             x_i = abs(prev_x_value) * (x_i + prev_x_value);
                         }
                     }
@@ -1097,7 +818,7 @@ void dpad(bool cup, bool cdown, bool cleft, bool cright) {
                 else{
                     prev_y_value = down - up;
                     if(right + left <= 1){
-                        if(frame_tick || !(Changetime == 0 && Dragontime == 0 && NAtime == 0 && NBtime == 0 && NIL1time == 0 && NIL2time == 0 && (cooltime == 0 || cooltime == CT))){
+                        if(frame_tick){
                             y_i = abs(prev_y_value) * (y_i + prev_y_value);
                         }
                     }
@@ -1160,10 +881,8 @@ void dpad(bool cup, bool cdown, bool cleft, bool cright) {
         x_value = x_value > 128 ? 0xFF : 0x00;
         y_value = 128;
     }
-    if(Changetime == 0 && Dragontime == 0 && (NIL1time == 0 || NIL1time == NIL1_FRAMES + CT) && (NIL2time == 0 || NIL2time == NIL2_FRAMES + CT)){
-        report.leftStickXAxis = x_value;
-        report.leftStickYAxis = y_value;
-    }
+    report.leftStickXAxis = smash_neutral_pressed() && directions == 0 ? 128 : x_value;
+    report.leftStickYAxis = smash_neutral_pressed() && directions == 0 ? 128 : y_value;
     prevSUM = left + right + up + down;
 }
 void send_hid_report() {
@@ -1193,6 +912,8 @@ void hid_task(void) {
     // 10 = L3, 11 = R3, 12 = Home
     uint32_t pins = read_active_pins_mask();
 
+    SJ = (pins & (1u << PIN_SJ)) != 0;
+    TILTE = (pins & (1u << PIN_TILTE)) != 0;
     EightBottuns = !gpio_get(PIN_A) || !gpio_get(PIN_B) || !gpio_get(PIN_L1) || (dpad_mode == 0 ? !gpio_get(PIN_R1) : !gpio_get(PIN_X) || !gpio_get(PIN_Y) || !gpio_get(PIN_L2));
     report.buttons = 0x00;
     report.triangleAxis = 0x00;
@@ -1203,7 +924,7 @@ void hid_task(void) {
     report.L2Axis = 0x00;
     report.R1Axis = 0x00;
     report.R2Axis = 0x00;
-    macro();
+    update_macro_state();
     cpad(pins & (1 << PIN_CUP),
          pins & (1 << PIN_CDOWN),
          pins & (1 << PIN_CLEFT),
@@ -1214,29 +935,21 @@ void hid_task(void) {
          pins & (1 << PIN_CRIGHT));
 
     if (pins & (1 << PIN_SJ)) {
-        SJ = true;
         if(dpad_mode != 0){
             report.buttons |= 1 << 10; //L3
         }
     }
-    else{
-        SJ = false;
-    }
     if (pins & (1 << PIN_TILTE)) {
-        TILTE = true;
         if(dpad_mode != 0){
             report.buttons |= 1 << 8; //select
         }
     }
-    else{
-        TILTE = false;
-    }
-    if(NIL1time == 0 && NIL2time == 0 && cooltime == 0 && (Dragontime == 0 || Dragontime > DRAGON_PHASE1_FRAMES)){
+    if(!macro_blocks(BlockButtons)){
         if(dpad_mode == 0){
-            if (pins & (1 << PIN_Y) && NIL2time == 0){
+            if (pins & (1 << PIN_Y)){
                 report.buttons |= 1 << 0; //Y
             }
-            if (pins & (1 << PIN_B) && NIL1time == 0){
+            if (pins & (1 << PIN_B)){
                 report.buttons |= 1 << 1; //B
             }
             if (pins & (1 << PIN_A)){
@@ -1245,7 +958,7 @@ void hid_task(void) {
             if (pins & (1 << PIN_X)){
                 report.buttons |= 1 << 3; //X
             }
-            if (pins & (1 << PIN_L1) && (Dragontime == 0 || Dragontime >= DRAGON_FRAMES)) {
+            if (pins & (1 << PIN_L1) && !macro_blocks(BlockL1)) {
                 report.buttons |= 1 << 4; //L1
             }
             if (pins & (1 << PIN_R1)) {
@@ -1256,9 +969,6 @@ void hid_task(void) {
             }
             if (pins & (1 << PIN_R2)) {
                 report.buttons |= 1 << 7; //R2
-            }
-            if ((pins & (1 << PIN_NA)) && NAtime > 0){
-                report.buttons |= 1 << 2; //A
             }
         }
         else{
@@ -1302,6 +1012,7 @@ void hid_task(void) {
     else if ((pins & (1 << PIN_START))) {
         report.buttons |= 1 << 9; //start
     }
+    apply_macro_outputs();
     send_hid_report();
     prevEight = EightBottuns;
 }
