@@ -13,10 +13,10 @@ static constexpr auto held = define_macro("held", held_steps, PassInput, Finish:
 int main() {
     MacroPlayer p;
     assert(!p.active() && !p.step() && p.policy() == PassInput);
-    p.request(first, -1);
-    assert(p.step_index == 0 && p.step_frame == 0 && p.direction == -1);
+    p.request(first, -1, 7);
+    assert(p.step_index == 0 && p.step_frame == 0 && p.direction == -1 && p.context == 7);
     assert(p.policy() == (BlockCpad | BlockButtons));
-    p.request(second, 1); // A short input survives until completion, without being held.
+    p.request(second, 1, 9); // A short input survives until completion, without being held.
     p.tick();
     assert(p.step_index == 0 && p.at_last_frame());
     p.tick();
@@ -24,7 +24,7 @@ int main() {
     p.tick(); p.tick();
     assert(p.is(first)); // Exactly 2 + 3 frames, not inclusive end thresholds.
     p.tick();
-    assert(p.is(second) && p.step_frame == 0 && p.direction == 1 && !p.pending);
+    assert(p.is(second) && p.step_frame == 0 && p.direction == 1 && !p.pending && p.context == 9);
     p.tick();
     assert(!p.active());
 

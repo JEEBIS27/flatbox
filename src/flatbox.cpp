@@ -9,7 +9,10 @@
 #include "tusb.h"
 #include "hardware/gpio.h"
 #include "macro_player.h"
-#include "neutral_direction_filter.h"
+#include "dragon_neutral_hold.h"
+#include "tilt_output.h"
+#include "input_filter.h"
+#include "input_settings.h"
 #define _USE_MATH_DEFINES
 
 int input_mode = 0;
@@ -32,9 +35,9 @@ constexpr uint32_t BASE_US = 16666;
 constexpr uint8_t REM_US = 40;
 FrameClock macro_clock {0, 0};
 bool frame_tick = false;
-static MacroPlayer player, neutral_attack, neutral_special, yoga;
+static MacroPlayer player, neutral_attack, neutral_special, yoga, dragon_followup;
 static unsigned macro_policy() {
-    return player.policy() | neutral_attack.policy() | neutral_special.policy() | yoga.policy();
+    return player.policy() | neutral_attack.policy() | neutral_special.policy() | yoga.policy() | dragon_followup.policy();
 }
 static bool macro_blocks(unsigned policy) { return (macro_policy() & policy) != 0; }
 
@@ -43,7 +46,6 @@ int prevSUM = 0;
 int up_angle = -5; //0 ~ 90
 int down_angle = -5; //0 ~ 90
 int half_angle = 23; //0 ~ 45
-double tilt_abs_value = 64.5; //(0 ~ 127) 64.5 is the value of Double Up Zip
 int hold_timeX = 10;
 int hold_timeY = 24;
 int prev_x_value = 0;
@@ -339,16 +341,20 @@ static inline uint remap_pin_for_input_modes(uint pin) {
     } else if (dpad_mode == 0) { // smash
         if (pin == PIN_TILTE) return PIN_SJ;
         if (pin == PIN_SJ) return PIN_TILTE;
-        if (pin == PIN_UP) return PIN_NA;
-        if (pin == PIN_NA) return PIN_LEFT;
+        if (pin == PIN_UP) return PIN_LEFT;
         if (pin == PIN_LEFT) return PIN_DOWN;
         if (pin == PIN_DOWN) return PIN_UP;
     }
     return pin;
 }
 
+static InputDebouncer input_debouncer(InputSettings::DebounceUs);
+static bool input_snapshot_ready = false;
+static uint32_t stable_physical_inputs = 0;
+
 static inline bool flatbox_gpio_get(uint pin) {
-    return gpio_get(remap_pin_for_input_modes(pin));
+    const uint physical = remap_pin_for_input_modes(pin);
+    return input_snapshot_ready ? (stable_physical_inputs & (1u << physical)) == 0 : gpio_get(physical);
 }
 
 #define gpio_get(pin) flatbox_gpio_get(pin)
@@ -654,17 +660,6 @@ void cpad(bool cup, bool cdown, bool cleft, bool cright){
         report.rightStickYAxis = 0x80;
     }
 }
-static void apply_step(const MacroStep& step) {
-    report.buttons |= step.buttons;
-    switch (step.stick) {
-        case Stick::Keep: break;
-        case Stick::Neutral: report.leftStickXAxis = 128; report.leftStickYAxis = 128; break;
-        case Stick::Down: report.leftStickXAxis = 128; report.leftStickYAxis = 255; break;
-        case Stick::Diagonal: report.leftStickXAxis = player.direction < 0 ? 38 : 218; report.leftStickYAxis = 218; break;
-        case Stick::Side: report.leftStickXAxis = player.direction < 0 ? 0 : 255; report.leftStickYAxis = 128; break;
-    }
-    if (step.apply) step.apply();
-}
 #include "macro_definitions.inc"
 
 static void update_macro_state(){
@@ -687,50 +682,35 @@ static void update_macro_state(){
         }
     }
 
-    // Advance existing sequences before accepting fresh events.
-    if (frame_tick) {
-        player.tick(); neutral_attack.tick(); neutral_special.tick(); yoga.tick();
-    }
-    if (dpad_mode == 0) {
-        neutral_attack.clear();
-        neutral_special.clear();
-    }
-    bool accepted = false;
-    for (auto& binding : macro_bindings) {
-        const bool triggered = binding.trigger();
-        if (binding.trigger_mode == TriggerMode::QueuedEdge) {
-            if (triggered && !binding.previous && !accepted && macro_mode > 0) {
-                player.request(*binding.definition, x_i < 0 ? -1 : 1);
-                accepted = true;
-            }
-        } else {
-            auto& state = *binding.state;
-            if (state.holding() && binding.released()) state.clear();
-            if (!state.active() && triggered) state.request(*binding.definition);
-        }
-        binding.previous = triggered;
-    }
-    if (macro_mode == 0) player.clear();
+    update_macros(frame_tick);
 }
 
 static void apply_macro_outputs() {
     // Normal input is computed first; macro outputs are the final overlay.
-    for (auto state : {&neutral_attack, &neutral_special, &yoga, &player}) {
+    for (auto state : {&yoga, &player}) {
         if (state->step()) apply_step(*state->step());
     }
+    apply_dragon_stick_lock();
+    if (dragon_followup.step()) apply_step(*dragon_followup.step());
+    // Neutral helpers take priority over Dragon and its post-run stick lock.
+    for (auto state : {&neutral_attack, &neutral_special}) {
+        if (state->step()) apply_step(*state->step());
+    }
+    const bool fixed_macro = (player.active() && !player.is(nil1_macro)) || yoga.active() || dragon_neutral_hold.holding() || dragon_neutral_hold.centering() || dragon_followup.active() ||
+        (neutral_attack.is(dragon_attack_macro) && !neutral_attack.holding());
+    if (TILTE && !fixed_macro) {
+        const TiltOutput output = apply_tilt_limit(report.leftStickXAxis, report.leftStickYAxis);
+        report.leftStickXAxis = output.x;
+        report.leftStickYAxis = output.y;
+    }
+
 }
 
 void dpad(bool cup, bool cdown, bool cleft, bool cright) {
-    static NeutralDirectionFilter neutral_filter;
-    const uint32_t held = (!gpio_get(PIN_UP) ? 1u : 0u) |
-                          (!gpio_get(PIN_DOWN) ? 2u : 0u) |
-                          (!gpio_get(PIN_LEFT) ? 4u : 0u) |
-                          (!gpio_get(PIN_RIGHT) ? 8u : 0u);
-    const uint32_t directions = neutral_filter.update(smash_neutral_pressed(), held);
-    int up = (directions & 1u) != 0;
-    int down = (directions & 2u) != 0;
-    int left = (directions & 4u) != 0;
-    int right = (directions & 8u) != 0;
+    int up = !gpio_get(PIN_UP) ? 1 : 0;
+    int down = !gpio_get(PIN_DOWN) ? 1 : 0;
+    int left = !gpio_get(PIN_LEFT) ? 1 : 0;
+    int right = !gpio_get(PIN_RIGHT) ? 1 : 0;
     int x_value;
     int y_value;
     int quadrant;
@@ -849,22 +829,23 @@ void dpad(bool cup, bool cdown, bool cleft, bool cright) {
                     else if(down == 1 && cright){
                         angle = 293;
                     }
-                    x_value = 128 + (TILTE ? tilt_abs_value : 127) * cos(angle * M_PI / 180);
-                    y_value = 128 + (TILTE ? tilt_abs_value : 127) * sin(angle * M_PI / 180) * -1;
+                    x_value = 128 + 127 * cos(angle * M_PI / 180);
+                    y_value = 128 + 127 * sin(angle * M_PI / 180) * -1;
                     break;
                 }
             }
         default: //cpt
-            angle = (left_value * left + right_value * right + up_value * up + down_value * down) / (left + right + up + down);
+            angle = left + right + up + down == 0 ? 0 :
+                (left_value * left + right_value * right + up_value * up + down_value * down) / (left + right + up + down);
             angle %= 360; //0 ~ 360
             quadrant = floor(angle / 90);
             if(!cleft && !cright && !cup && !cdown && (left + right + up + down == 2) && dpad_mode == 0){
                 angle += (quadrant % 2 == 1 ? 1 : -1) * (up == 1 ? up_angle : (down == 1 ? down_angle : 0));
             }
-            x_value = 128 + (right - left) * (TILTE ? tilt_abs_value : 127) * abs(cos(angle * M_PI / 180));
-            y_value = 128 + (down - up) * (TILTE ? tilt_abs_value : 127) * abs(sin(angle * M_PI / 180));
+            x_value = 128 + (right - left) * 127 * abs(cos(angle * M_PI / 180));
+            y_value = 128 + (down - up) * 127 * abs(sin(angle * M_PI / 180));
     }
-    if (SJ && EightBottuns && abs(x_i) < y_i && down == 1 && left + right >= 1 && gpio_get(PIN_TILTE)){
+    if (!neutral_attack.active() && !dragon_sequence_established && SJ && EightBottuns && abs(x_i) < y_i && down == 1 && left + right >= 1 && gpio_get(PIN_TILTE)){
         if(prevSUM > 1){
             x_value = x_value > 128 ? 0xFF : 0x00;
             y_value = 128;
@@ -881,8 +862,8 @@ void dpad(bool cup, bool cdown, bool cleft, bool cright) {
         x_value = x_value > 128 ? 0xFF : 0x00;
         y_value = 128;
     }
-    report.leftStickXAxis = smash_neutral_pressed() && directions == 0 ? 128 : x_value;
-    report.leftStickYAxis = smash_neutral_pressed() && directions == 0 ? 128 : y_value;
+    report.leftStickXAxis = x_value;
+    report.leftStickYAxis = y_value;
     prevSUM = left + right + up + down;
 }
 void send_hid_report() {
@@ -910,11 +891,17 @@ void hid_task(void) {
     // bits: 0 = Y, 1 = B, 2 = A, 3 = X
     // 4 = L1, 5 = R1, 6 = L2, 7 = R2, 8 = select, 9 = start,
     // 10 = L3, 11 = R3, 12 = Home
+    const uint32_t raw_inputs = (~gpio_get_all()) & pin_mask;
+    stable_physical_inputs = InputSettings::DebounceEnabled
+        ? input_debouncer.update(raw_inputs, time_us_64()) : raw_inputs;
+    input_snapshot_ready = true;
     uint32_t pins = read_active_pins_mask();
 
     SJ = (pins & (1u << PIN_SJ)) != 0;
     TILTE = (pins & (1u << PIN_TILTE)) != 0;
-    EightBottuns = !gpio_get(PIN_A) || !gpio_get(PIN_B) || !gpio_get(PIN_L1) || (dpad_mode == 0 ? !gpio_get(PIN_R1) : !gpio_get(PIN_X) || !gpio_get(PIN_Y) || !gpio_get(PIN_L2));
+    update_consumed_inputs();
+    const uint32_t attack_mask = dragon_attack_mask();
+    EightBottuns = (macro_consumed.filter(pins) & attack_mask) != 0;
     report.buttons = 0x00;
     report.triangleAxis = 0x00;
     report.circleAxis = 0x00;
@@ -925,14 +912,15 @@ void hid_task(void) {
     report.R1Axis = 0x00;
     report.R2Axis = 0x00;
     update_macro_state();
-    cpad(pins & (1 << PIN_CUP),
-         pins & (1 << PIN_CDOWN),
-         pins & (1 << PIN_CLEFT),
-         pins & (1 << PIN_CRIGHT));
-    dpad(pins & (1 << PIN_CUP),
-         pins & (1 << PIN_CDOWN),
-         pins & (1 << PIN_CLEFT),
-         pins & (1 << PIN_CRIGHT));
+    const uint32_t stick_pins = macro_consumed.filter(pins);
+    cpad(stick_pins & (1 << PIN_CUP),
+         stick_pins & (1 << PIN_CDOWN),
+         stick_pins & (1 << PIN_CLEFT),
+         stick_pins & (1 << PIN_CRIGHT));
+    dpad(stick_pins & (1 << PIN_CUP),
+         stick_pins & (1 << PIN_CDOWN),
+         stick_pins & (1 << PIN_CLEFT),
+         stick_pins & (1 << PIN_CRIGHT));
 
     if (pins & (1 << PIN_SJ)) {
         if(dpad_mode != 0){
@@ -944,57 +932,57 @@ void hid_task(void) {
             report.buttons |= 1 << 8; //select
         }
     }
+    const uint32_t output_pins = macro_consumed.filter(pins);
     if(!macro_blocks(BlockButtons)){
         if(dpad_mode == 0){
-            if (pins & (1 << PIN_Y)){
+            if (output_pins & (1 << PIN_Y)){
                 report.buttons |= 1 << 0; //Y
             }
-            if (pins & (1 << PIN_B)){
+            if (output_pins & (1 << PIN_B)){
                 report.buttons |= 1 << 1; //B
             }
-            if (pins & (1 << PIN_A)){
+            if (output_pins & (1 << PIN_A)){
                 report.buttons |= 1 << 2; //A
             }
-            if (pins & (1 << PIN_X)){
+            if (output_pins & (1 << PIN_X)){
                 report.buttons |= 1 << 3; //X
             }
-            if (pins & (1 << PIN_L1) && !macro_blocks(BlockL1)) {
+            if (output_pins & (1 << PIN_L1) && normal_l1_allowed() && !macro_blocks(BlockL1)) {
                 report.buttons |= 1 << 4; //L1
             }
-            if (pins & (1 << PIN_R1)) {
+            if (output_pins & (1 << PIN_R1)) {
                 report.buttons |= 1 << 5; //R1
             }
-            if (pins & (1 << PIN_L2)){
+            if (output_pins & (1 << PIN_L2)){
                 report.buttons |= 1 << 6; //L2
             }
-            if (pins & (1 << PIN_R2)) {
+            if (output_pins & (1 << PIN_R2)) {
                 report.buttons |= 1 << 7; //R2
             }
         }
         else{
-            tilt_abs_value = 127;
-            if (pins & (1 << PIN_Y)){
+            if (output_pins & (1 << PIN_Y)){
                 report.buttons |= 1 << 0; //Y
             }
-            if (pins & (1 << PIN_B)){
+            if (output_pins & (1 << PIN_B)){
                 report.buttons |= 1 << 1; //B
             }
-            if (pins & (1 << PIN_A)){
+            if (output_pins & (1 << PIN_A)){
                 report.buttons |= 1 << 2; //A
             }
-            if (pins & (1 << PIN_X)){
+            if (output_pins & (1 << PIN_X)){
                 report.buttons |= 1 << 3; //X
             }
-            if (pins & (1 << PIN_L1)) {
+            if ((output_pins & (1 << PIN_L1)) && normal_l1_allowed()) {
                 report.buttons |= 1 << 7; //R2
             }
-            if (pins & (1 << PIN_R1)) {
+            if (output_pins & (1 << PIN_R1)) {
                 report.buttons |= 1 << 6; //L2
             }
-            if (pins & (1 << PIN_L2)){
+            if (output_pins & (1 << PIN_L2)){
                 report.buttons |= 1 << 5; //R1
             }
-            if (pins & (1 << PIN_R2)) {
+            if (output_pins & (1 << PIN_R2)) {
                 report.buttons |= 1 << 4; //L1
             }
             if (!gpio_get(PIN_NA)){

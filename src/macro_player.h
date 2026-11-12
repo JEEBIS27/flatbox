@@ -31,11 +31,12 @@ struct MacroDefinition {
     size_t count;
     unsigned policy;
     Finish finish;
+    size_t immediate_start; // Queued runs always start at step zero.
 };
 template<size_t N>
 constexpr MacroDefinition define_macro(const char* name, const MacroStep (&steps)[N],
-                                       unsigned policy = PassInput, Finish finish = Finish::Complete) {
-    return {name, steps, N, policy, finish};
+                                       unsigned policy = PassInput, Finish finish = Finish::Complete, size_t immediate_start = 0) {
+    return {name, steps, N, policy, finish, immediate_start};
 }
 // Durations live only in step definitions; no independent total or end-frame constants.
 class MacroPlayer {
@@ -45,9 +46,22 @@ public:
     size_t step_index = 0;
     Frame step_frame = 0; // zero based within the current step
     int direction = 1;
-    void request(const MacroDefinition& macro, int facing = 1) {
-        if (!current) start(&macro, facing);
-        else { pending = &macro; pending_direction = facing; }
+    uint32_t run_id = 0;
+    uint32_t context = 0; // Request metadata follows immediate and queued runs.
+    // A branch belongs to the current run, independently of the next-macro slot.
+    void reserve_branch(unsigned branch) {
+        if (current && !branch_selected) pending_branch = branch;
+    }
+    unsigned select_branch() {
+        branch_selected = true;
+        return pending_branch;
+    }
+    void request(const MacroDefinition& macro, int facing = 1, uint32_t request_context = 0) {
+        if (!current) start(&macro, facing, request_context);
+        else { pending = &macro; pending_direction = facing; pending_context = request_context; }
+    }
+    void update_pending_direction(const MacroDefinition& macro, int facing) {
+        if (pending == &macro) pending_direction = facing;
     }
     const MacroStep* step() const { return current ? &current->steps[step_index] : nullptr; }
     bool active() const { return current != nullptr; }
@@ -60,17 +74,23 @@ public:
         if (++step_frame < step()->frames) return;
         step_frame = 0;
         if (++step_index < current->count) return;
-        auto next = pending; pending = nullptr; start(next, pending_direction);
+        auto next = pending; pending = nullptr; start(next, pending_direction, pending_context, true);
     }
     void seek(size_t index, Frame offset = 0) {
         if (current && index < current->count && offset < current->steps[index].frames) {
             step_index = index; step_frame = offset;
         }
     }
-    void clear() { current = pending = nullptr; step_index = 0; step_frame = 0; }
+    void clear() { current = pending = nullptr; step_index = 0; step_frame = 0; pending_branch = 0; branch_selected = false; context = 0; pending_context = 0; }
 private:
     int pending_direction = 1;
-    void start(const MacroDefinition* macro, int facing) {
-        current = macro; step_index = 0; step_frame = 0; direction = facing;
+    uint32_t pending_context = 0;
+    unsigned pending_branch = 0;
+    bool branch_selected = false;
+    void start(const MacroDefinition* macro, int facing, uint32_t request_context, bool queued = false) {
+        current = macro; step_index = macro && !queued ? macro->immediate_start : 0; step_frame = 0; direction = facing;
+        context = macro ? request_context : 0;
+        pending_branch = 0; branch_selected = false;
+        if (macro) ++run_id;
     }
 };
